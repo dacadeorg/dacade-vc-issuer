@@ -177,7 +177,7 @@ interface VerifiableCredentialService {
   ): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }>;
 }
 
-export default class canister implements VerifiableCredentialService {
+export default class Canister implements VerifiableCredentialService {
   @query(
     [AzleDerivationOriginRequestType],
     IDL.Variant({
