@@ -1,0 +1,13 @@
+{
+  "canisters": {
+    "dacade_vc_issuer": {
+      "type": "azle",
+      "main": "src/index.ts",
+      "candid_gen": "automatic",
+      "declarations": {
+        "output": "test/dfx_generated/dacade_vc_issuer",
+        "node_compatibility": true
+      }
+    }
+  }
+}
