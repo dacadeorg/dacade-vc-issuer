@@ -159,6 +159,14 @@ const AzleDerivationOriginErrorType = IDL.Variant({
   UnsupportedOrigin: IDL.Text,
 });
 
+const supportedCredentials = [
+  "ICP 101 completion",
+  "ICP 201 completion",
+  "ICP DeAi Completion",
+];
+
+const supportedOrigins = ["dacade.org"];
+
 interface VerifiableCredentialService {
   derivation_origin(
     request: DerivationOriginRequest
@@ -188,12 +196,46 @@ export default class Canister implements VerifiableCredentialService {
   async derivation_origin(
     request: DerivationOriginRequest
   ): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }> {
-    return { Ok: { origin: request.frontend_hostname } };
+    const originRequest = request.frontend_hostname;
+    if (!supportedOrigins.includes(originRequest)) {
+      return {
+        Err: {
+          UnsupportedOrigin: `${originRequest} is not supported`,
+        },
+      };
+    }
+
+    return { Ok: { origin: originRequest } };
   }
 
-  @query([])
-  async vc_consent_message() {
-    return { Ok: { consent_message: "string", language: "string" } };
+  @query(
+    [AzleIcrc21VcConsentMessageRequestType],
+    IDL.Variant({
+      Ok: AzleIcrc21ConsentInfoType,
+      Err: AzleIcrc21ErrorType,
+    })
+  )
+  async vc_consent_message(
+    request: Icrc21VcConsentMessageRequest
+  ): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }> {
+    if (
+      !supportedCredentials.includes(request.credential_spec.credential_type)
+    ) {
+      return {
+        Err: {
+          UnsupportedCanisterCall: {
+            description: `Dacade cannot provide ${request.credential_spec.credential_type} type of credentials`,
+          },
+        },
+      };
+    }
+
+    return {
+      Ok: {
+        consent_message: `You are requesting ${request.credential_spec.credential_type} credentials`,
+        language: request.preferences.language,
+      },
+    };
   }
 
   @query([])
