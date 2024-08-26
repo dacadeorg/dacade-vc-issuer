@@ -1,4 +1,5 @@
 import { IDL, query, update } from "azle";
+import { Result } from "azle/src/lib";
 
 /**
  * Link to the DOC: https://internetcomputer.org/docs/current/developer-docs/identity/verifiable-credentials/issuer
@@ -39,10 +40,7 @@ const AzleIcrc21ConsentPreferencesType = IDL.Record({
   language: IDL.Text,
 });
 
-type Icrc21Error =
-  | { GenericError: { description: string; error_code: number } }
-  | { UnsupportedCanisterCall: Icrc21ErrorInfo }
-  | { ConsentMessageUnavailable: Icrc21ErrorInfo };
+type Icrc21Error = { GenericError: { description: string; error_code: number } } | { UnsupportedCanisterCall: Icrc21ErrorInfo } | { ConsentMessageUnavailable: Icrc21ErrorInfo };
 
 type Icrc21ErrorInfo = {
   description: string;
@@ -84,10 +82,10 @@ const AzleSignedIdAliasType = IDL.Record({
   credential_jws: IDL.Text,
 });
 
-const AzlePrepareCredentialRequestType = {
+const AzlePrepareCredentialRequestType = IDL.Record({
   signed_id_alias: AzleSignedIdAliasType,
   credential_spec: AzleCredentialSpecType,
-};
+});
 
 type PreparedCredentialData = {
   prepared_context?: Uint8Array;
@@ -150,52 +148,34 @@ const AzleDerivationOriginDataType = IDL.Record({
   origin: IDL.Text,
 });
 
-type DerivationOriginError =
-  | { Internal: string }
-  | { UnsupportedOrigin: string };
+type DerivationOriginError = { Internal: string } | { UnsupportedOrigin: string };
 
 const AzleDerivationOriginErrorType = IDL.Variant({
   Internal: IDL.Text,
   UnsupportedOrigin: IDL.Text,
 });
 
-const supportedCredentials = [
-  "ICP 101 completion",
-  "ICP 201 completion",
-  "ICP DeAi Completion",
-];
+const supportedCredentials = ["ICP 101 completion", "ICP 201 completion", "ICP DeAi Completion"];
 
-const supportedOrigins = ["dacade.org"];
+const supportedOrigins = ["https://dacade.org", "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
 
 interface VerifiableCredentialService {
-  derivation_origin(
-    request: DerivationOriginRequest
-  ): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }>;
-
-  vc_consent_message(
-    request: Icrc21VcConsentMessageRequest
-  ): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }>;
-
-  prepare_credential(
-    request: PrepareCredentialRequest
-  ): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }>;
-
-  get_credential(
-    request: GetCredentialRequest
-  ): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }>;
+  derivation_origin(request: DerivationOriginRequest): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }>;
+  vc_consent_message(request: Icrc21VcConsentMessageRequest): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }>;
+  prepare_credential(request: PrepareCredentialRequest): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }>;
+  get_credential(request: GetCredentialRequest): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }>;
 }
 
 export default class Canister implements VerifiableCredentialService {
-  @query(
+  @update(
     [AzleDerivationOriginRequestType],
     IDL.Variant({
       Ok: AzleDerivationOriginDataType,
       Err: AzleDerivationOriginErrorType,
     })
   )
-  async derivation_origin(
-    request: DerivationOriginRequest
-  ): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }> {
+  async derivation_origin(request: DerivationOriginRequest): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }> {
+    console.log({ derivation_origin: request, supportedOrigins });
     const originRequest = request.frontend_hostname;
     if (!supportedOrigins.includes(originRequest)) {
       return {
@@ -208,19 +188,16 @@ export default class Canister implements VerifiableCredentialService {
     return { Ok: { origin: originRequest } };
   }
 
-  @query(
+  @update(
     [AzleIcrc21VcConsentMessageRequestType],
     IDL.Variant({
       Ok: AzleIcrc21ConsentInfoType,
       Err: AzleIcrc21ErrorType,
     })
   )
-  async vc_consent_message(
-    request: Icrc21VcConsentMessageRequest
-  ): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }> {
-    if (
-      !supportedCredentials.includes(request.credential_spec.credential_type)
-    ) {
+  async vc_consent_message(request: Icrc21VcConsentMessageRequest): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }> {
+    console.log({ consentMessageRequest: request });
+    if (!supportedCredentials.includes(request.credential_spec.credential_type)) {
       return {
         Err: {
           UnsupportedCanisterCall: {
@@ -238,9 +215,21 @@ export default class Canister implements VerifiableCredentialService {
     };
   }
 
-  @query([])
-  async prepare_credential() {
-    return { Ok: { prepared_context: [] } };
+  @update(
+    [AzlePrepareCredentialRequestType],
+    IDL.Variant({
+      Ok: AzlePreparedCredentialDataType,
+      Err: AzleIssueCredentialErrorType,
+    })
+  )
+  async prepare_credential(request: PrepareCredentialRequest): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }> {
+    console.log({ prepare_credential: request });
+
+    const preparedCredential = {
+      prepared_context: new Uint8Array(),
+    };
+
+    return { Ok: preparedCredential };
   }
 
   @query([])
