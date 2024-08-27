@@ -12,7 +12,7 @@ type CredentialSpec = {
 
 const AzleCredentialSpecType = IDL.Record({
   credential_type: IDL.Text,
-  arguments: IDL.Vec(IDL.Record({})),
+  arguments: IDL.Opt(IDL.Vec(IDL.Record({}))),
 });
 
 type ArgumentValue = { Int: number } | { String: string };
