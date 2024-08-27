@@ -1,5 +1,5 @@
 import { IDL, query, update } from "azle";
-import { Result } from "azle/src/lib";
+import { Record, Result } from "azle/src/lib";
 
 /**
  * Link to the DOC: https://internetcomputer.org/docs/current/developer-docs/identity/verifiable-credentials/issuer
@@ -160,13 +160,13 @@ const supportedCredentials = ["ICP 101 completion", "ICP 201 completion", "ICP D
 const supportedOrigins = ["https://dacade.org", "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
 
 interface VerifiableCredentialService {
-  derivation_origin(request: DerivationOriginRequest): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }>;
-  vc_consent_message(request: Icrc21VcConsentMessageRequest): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }>;
-  prepare_credential(request: PrepareCredentialRequest): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }>;
-  get_credential(request: GetCredentialRequest): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }>;
+  derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError };
+  vc_consent_message(request: Icrc21VcConsentMessageRequest): { Ok: Icrc21ConsentInfo } | { Err: Icrc21Error };
+  prepare_credential(request: PrepareCredentialRequest): { Ok: PreparedCredentialData } | { Err: IssueCredentialError };
+  get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError };
 }
 
-export default class Canister implements VerifiableCredentialService {
+export default class {
   @update(
     [AzleDerivationOriginRequestType],
     IDL.Variant({
@@ -174,8 +174,7 @@ export default class Canister implements VerifiableCredentialService {
       Err: AzleDerivationOriginErrorType,
     })
   )
-  async derivation_origin(request: DerivationOriginRequest): Promise<{ Ok: DerivationOriginData } | { Err: DerivationOriginError }> {
-    console.log({ derivation_origin: request, supportedOrigins });
+  derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError } {
     const originRequest = request.frontend_hostname;
     if (!supportedOrigins.includes(originRequest)) {
       return {
@@ -184,7 +183,7 @@ export default class Canister implements VerifiableCredentialService {
         },
       };
     }
-
+    console.log({ originRequest });
     return { Ok: { origin: originRequest } };
   }
 
@@ -195,7 +194,7 @@ export default class Canister implements VerifiableCredentialService {
       Err: AzleIcrc21ErrorType,
     })
   )
-  async vc_consent_message(request: Icrc21VcConsentMessageRequest): Promise<{ Ok: Icrc21ConsentInfo } | { Err: Icrc21Error }> {
+  vc_consent_message(request: Icrc21VcConsentMessageRequest): { Ok: Icrc21ConsentInfo } | { Err: Icrc21Error } {
     console.log({ consentMessageRequest: request });
     if (!supportedCredentials.includes(request.credential_spec.credential_type)) {
       return {
@@ -206,7 +205,6 @@ export default class Canister implements VerifiableCredentialService {
         },
       };
     }
-
     return {
       Ok: {
         consent_message: `You are requesting ${request.credential_spec.credential_type} credentials`,
@@ -222,7 +220,7 @@ export default class Canister implements VerifiableCredentialService {
       Err: AzleIssueCredentialErrorType,
     })
   )
-  async prepare_credential(request: PrepareCredentialRequest): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }> {
+  prepare_credential(request: PrepareCredentialRequest): { Ok: PreparedCredentialData } | { Err: IssueCredentialError } {
     console.log({ prepare_credential: request });
 
     const preparedCredential = {
@@ -232,8 +230,8 @@ export default class Canister implements VerifiableCredentialService {
     return { Ok: preparedCredential };
   }
 
-  @query([])
-  async get_credential() {
+  @query([], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
+  get_credential(): { Ok: IssuedCredentialData } | { Err: IssueCredentialError } {
     return { Ok: { vc_jws: "string" } };
   }
 }

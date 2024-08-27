@@ -2,9 +2,13 @@
   "canisters": {
     "internet_identity": {
       "type": "custom",
-      "shrink": false,
-      "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2024-08-21/internet_identity.did",
-      "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2024-08-21/internet_identity_dev.wasm.gz"
+      "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2024-06-07/internet_identity_dev.wasm.gz",
+      "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2024-06-07/internet_identity.did",
+      "remote": {
+        "id": {
+          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+        }
+      }
     },
     "dacade_vc_issuer": {
       "type": "azle",
