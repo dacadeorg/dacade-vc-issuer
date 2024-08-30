@@ -1,5 +1,6 @@
-import { IDL, query, update } from "azle";
-import { Record, Result } from "azle/src/lib";
+import { IDL, query, update, time } from "azle";
+import jws from "jws";
+import * as jose from "jose";
 
 /**
  * Link to the DOC: https://internetcomputer.org/docs/current/developer-docs/identity/verifiable-credentials/issuer
@@ -10,17 +11,17 @@ type CredentialSpec = {
   arguments?: [string, ArgumentValue][];
 };
 
+const AzleArgumentValueType = IDL.Variant({
+  Int: IDL.Int32,
+  String: IDL.Text,
+});
+
 const AzleCredentialSpecType = IDL.Record({
   credential_type: IDL.Text,
-  arguments: IDL.Opt(IDL.Vec(IDL.Record({}))),
+  arguments: IDL.Opt(IDL.Vec(IDL.Tuple(IDL.Text, AzleArgumentValueType))),
 });
 
 type ArgumentValue = { Int: number } | { String: string };
-
-const AzleArgumentValueType = IDL.Variant({
-  Int: IDL.Int,
-  String: IDL.Text,
-});
 
 type Icrc21ConsentInfo = {
   consent_message: string;
@@ -92,7 +93,7 @@ type PreparedCredentialData = {
 };
 
 const AzlePreparedCredentialDataType = IDL.Record({
-  prepared_context: IDL.Opt(IDL.Int8),
+  prepared_context: IDL.Opt(IDL.Nat8),
 });
 
 type GetCredentialRequest = {
@@ -158,6 +159,10 @@ const AzleDerivationOriginErrorType = IDL.Variant({
 const supportedCredentials = ["ICP 101 completion", "ICP 201 completion", "ICP DeAi Completion"];
 
 const supportedOrigins = ["https://dacade.org", "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
+const II_CREDENTIAL_URL_PREFIX = "data:text/plain;charset=UTF-8,";
+const II_ISSUER_URL = "https://identity.ic0.app/";
+const VC_SIGNING_INPUT_DOMAIN = "iccs_verifiable_credential";
+const DID_ICP_PREFIX = "did:icp:";
 
 interface VerifiableCredentialService {
   derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError };
@@ -172,7 +177,7 @@ export default class {
     IDL.Variant({
       Ok: AzleDerivationOriginDataType,
       Err: AzleDerivationOriginErrorType,
-    })
+    }),
   )
   derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError } {
     const originRequest = request.frontend_hostname;
@@ -192,7 +197,7 @@ export default class {
     IDL.Variant({
       Ok: AzleIcrc21ConsentInfoType,
       Err: AzleIcrc21ErrorType,
-    })
+    }),
   )
   vc_consent_message(request: Icrc21VcConsentMessageRequest): { Ok: Icrc21ConsentInfo } | { Err: Icrc21Error } {
     console.log({ consentMessageRequest: request });
@@ -218,20 +223,58 @@ export default class {
     IDL.Variant({
       Ok: AzlePreparedCredentialDataType,
       Err: AzleIssueCredentialErrorType,
-    })
+    }),
   )
-  prepare_credential(request: PrepareCredentialRequest): { Ok: PreparedCredentialData } | { Err: IssueCredentialError } {
-    console.log({ prepare_credential: request });
+  async prepare_credential(request: PrepareCredentialRequest): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }> {
+    // const credentialJws = request.signed_id_alias.credential_jws;
+    // console.log({ credentialJws });
+    //
+    // const decodedJWS = jws.decode(credentialJws);
+    // console.log({ decodedJWS });
+    // if (!decodedJWS) return { Err: { UnknownSubject: "JWS not found" } };
+    // const jwk = decodedJWS.header.jwk;
+    // if (!jwk) return { Err: { SignatureNotFound: "Signature not found" } };
+    // // @ts-ignore
+    // if (jwk.alg?.toLowerCase() !== "iccs") return { Err: { UnknownSubject: "Unsupported Algorithm" } };
+    // if (jwk.kty !== "oct") return { Err: { UnknownSubject: "Expected JWK of type oct" } };
+    // const jwk_params = jwk?.k;
+    // if (!jwk_params) return { Err: { UnknownSubject: "Expected K params in the JWK" } };
+    //
+    // const payload = JSON.parse(decodedJWS.payload);
+    // if (payload.iss !== II_ISSUER_URL) return { Err: { UnknownSubject: "II issuer not supported" } };
+    // if (!payload.jti.startWith(II_CREDENTIAL_URL_PREFIX)) return { Err: { UnknownSubject: "Wrong credential prefix" } };
+    //
+    // const subjectPrincipal = ic.caller();
+    // console.log({ subjectPrincipal });
+    // console.log({ decodedJWS });
 
-    const preparedCredential = {
-      prepared_context: new Uint8Array(),
+    // const result = {
+    //   [request.credential_spec.credential_type]: request.credential_spec.arguments,
+    // };
+    //
+    // const serializedArgs = {};
+    //
+    // result[request.credential_spec.credential_type]?.[0]?.forEach((item) => {
+    //   const [key, valueObj] = item;
+    //   if (typeof valueObj !== "string") {
+    //     serializedArgs[key] = valueObj.String || valueObj.Int;
+    //   } else {
+    //     serializedArgs[key] = valueObj;
+    //   }
+    // });
+
+    // const credentialData = { [request.credential_spec.credential_type]: serializedArgs };
+
+    return {
+      Ok: {
+        prepared_context: Buffer.from("hello", "utf-8"),
+      },
     };
-
-    return { Ok: preparedCredential };
   }
 
-  @query([], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
-  get_credential(): { Ok: IssuedCredentialData } | { Err: IssueCredentialError } {
+  @query([AzleGetCredentialRequestType], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
+  get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError } {
+    console.log({ getCredentialRequest: request });
     return { Ok: { vc_jws: "string" } };
   }
 }
