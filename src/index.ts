@@ -1,14 +1,15 @@
-import { IDL, query, update, time } from "azle";
+import { IDL, Principal, query, update, caller, id } from "azle";
 import jws from "jws";
 import * as jose from "jose";
+import { sha256 } from "js-sha256";
 
 /**
  * Link to the DOC: https://internetcomputer.org/docs/current/developer-docs/identity/verifiable-credentials/issuer
- * Link to candid Interface: https://github.com/dfinity/internet-identity/blob/main/docs/vc-spec.md
+ * Link to candid Interface and specification: https://github.com/dfinity/internet-identity/blob/main/docs/vc-spec.md
  */
 type CredentialSpec = {
   credential_type: string;
-  arguments?: [string, ArgumentValue][];
+  arguments: [] | [Array<[string, ArgumentValue]>];
 };
 
 const AzleArgumentValueType = IDL.Variant({
@@ -54,7 +55,7 @@ const AzleIcrc21ErrorInfoType = IDL.Record({
 const AzleIcrc21ErrorType = IDL.Variant({
   GenericError: IDL.Record({
     description: IDL.Text,
-    error_code: IDL.Int,
+    error_code: IDL.Nat,
   }),
   UnsupportedCanisterCall: AzleIcrc21ErrorInfoType,
   ConsentMessageUnavailable: AzleIcrc21ErrorInfoType,
@@ -70,7 +71,7 @@ const AzleIcrc21VcConsentMessageRequestType = IDL.Record({
   credential_spec: AzleCredentialSpecType,
 });
 
-type PrepareCredentialRequest = {
+type PrepareCredentialRequestType = {
   signed_id_alias: SignedIdAlias;
   credential_spec: CredentialSpec;
 };
@@ -83,29 +84,29 @@ const AzleSignedIdAliasType = IDL.Record({
   credential_jws: IDL.Text,
 });
 
-const AzlePrepareCredentialRequestType = IDL.Record({
+const PrepareCredentialRequest = IDL.Record({
   signed_id_alias: AzleSignedIdAliasType,
   credential_spec: AzleCredentialSpecType,
 });
 
-type PreparedCredentialData = {
-  prepared_context?: Uint8Array;
+type PreparedCredentialDataType = {
+  prepared_context: [] | [Uint8Array | number[]];
 };
 
-const AzlePreparedCredentialDataType = IDL.Record({
-  prepared_context: IDL.Opt(IDL.Nat8),
+const PreparedCredentialData = IDL.Record({
+  prepared_context: IDL.Opt(IDL.Vec(IDL.Nat8)),
 });
 
 type GetCredentialRequest = {
   signed_id_alias: SignedIdAlias;
   credential_spec: CredentialSpec;
-  prepared_context?: Uint8Array;
+  prepared_context?: [] | [Uint8Array | number[]];
 };
 
 const AzleGetCredentialRequestType = IDL.Record({
   signed_id_alias: AzleSignedIdAliasType,
   credential_spec: AzleCredentialSpecType,
-  prepared_context: IDL.Opt(IDL.Int8),
+  prepared_context: IDL.Opt(IDL.Vec(IDL.Nat8)),
 });
 
 type IssuedCredentialData = {
@@ -157,21 +158,35 @@ const AzleDerivationOriginErrorType = IDL.Variant({
 });
 
 const supportedCredentials = ["ICP 101 completion", "ICP 201 completion", "ICP DeAi Completion"];
-
 const supportedOrigins = ["https://dacade.org", "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
-const II_CREDENTIAL_URL_PREFIX = "data:text/plain;charset=UTF-8,";
-const II_ISSUER_URL = "https://identity.ic0.app/";
+const CREDENTIAL_URL_PREFIX = "data:text/plain;charset=UTF-8,";
+const ISSUER_URL = "https://identity.ic0.app/";
 const VC_SIGNING_INPUT_DOMAIN = "iccs_verifiable_credential";
 const DID_ICP_PREFIX = "did:icp:";
+const MINUTE_NS = 60n * 1_000_000_000n;
+const VC_EXPIRATION_PERIOD_NS = 15n * MINUTE_NS;
+const CANISTER_SIG_SEED = hashBytes("DacadeIssuer");
+const CANISTER_SIG_PK = {
+  canisterId: id(),
+  seed: CANISTER_SIG_SEED,
+};
 
 interface VerifiableCredentialService {
   derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError };
   vc_consent_message(request: Icrc21VcConsentMessageRequest): { Ok: Icrc21ConsentInfo } | { Err: Icrc21Error };
-  prepare_credential(request: PrepareCredentialRequest): { Ok: PreparedCredentialData } | { Err: IssueCredentialError };
-  get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError };
+  prepare_credential(request: PrepareCredentialRequestType): { Ok: PreparedCredentialDataType } | { Err: IssueCredentialError };
+  get_credential(request: GetCredentialRequest): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }>;
 }
 
-export default class {
+function hashBytes(value: string): Uint8Array {
+  return new Uint8Array(sha256.array(value));
+}
+
+function expTimestampS(): number {
+  return Number((BigInt(Date.now()) * 1_000_000n + VC_EXPIRATION_PERIOD_NS) / 1_000_000_000n);
+}
+
+export default class Canister implements VerifiableCredentialService {
   @update(
     [AzleDerivationOriginRequestType],
     IDL.Variant({
@@ -219,62 +234,139 @@ export default class {
   }
 
   @update(
-    [AzlePrepareCredentialRequestType],
+    [PrepareCredentialRequest],
     IDL.Variant({
-      Ok: AzlePreparedCredentialDataType,
+      Ok: PreparedCredentialData,
       Err: AzleIssueCredentialErrorType,
     }),
   )
-  async prepare_credential(request: PrepareCredentialRequest): Promise<{ Ok: PreparedCredentialData } | { Err: IssueCredentialError }> {
-    // const credentialJws = request.signed_id_alias.credential_jws;
-    // console.log({ credentialJws });
-    //
-    // const decodedJWS = jws.decode(credentialJws);
-    // console.log({ decodedJWS });
-    // if (!decodedJWS) return { Err: { UnknownSubject: "JWS not found" } };
-    // const jwk = decodedJWS.header.jwk;
-    // if (!jwk) return { Err: { SignatureNotFound: "Signature not found" } };
-    // // @ts-ignore
-    // if (jwk.alg?.toLowerCase() !== "iccs") return { Err: { UnknownSubject: "Unsupported Algorithm" } };
-    // if (jwk.kty !== "oct") return { Err: { UnknownSubject: "Expected JWK of type oct" } };
-    // const jwk_params = jwk?.k;
-    // if (!jwk_params) return { Err: { UnknownSubject: "Expected K params in the JWK" } };
-    //
-    // const payload = JSON.parse(decodedJWS.payload);
-    // if (payload.iss !== II_ISSUER_URL) return { Err: { UnknownSubject: "II issuer not supported" } };
-    // if (!payload.jti.startWith(II_CREDENTIAL_URL_PREFIX)) return { Err: { UnknownSubject: "Wrong credential prefix" } };
-    //
-    // const subjectPrincipal = ic.caller();
-    // console.log({ subjectPrincipal });
-    // console.log({ decodedJWS });
+  prepare_credential(request: PrepareCredentialRequestType): { Ok: PreparedCredentialDataType } | { Err: IssueCredentialError } {
+    // 1. Verify the signed_id_alias
+    const decodedJWS = jws.decode(request.signed_id_alias.credential_jws);
+    if (!decodedJWS) {
+      return { Err: { InvalidIdAlias: "Invalid JWS format" } };
+    }
 
-    // const result = {
-    //   [request.credential_spec.credential_type]: request.credential_spec.arguments,
-    // };
-    //
-    // const serializedArgs = {};
-    //
-    // result[request.credential_spec.credential_type]?.[0]?.forEach((item) => {
-    //   const [key, valueObj] = item;
-    //   if (typeof valueObj !== "string") {
-    //     serializedArgs[key] = valueObj.String || valueObj.Int;
-    //   } else {
-    //     serializedArgs[key] = valueObj;
-    //   }
-    // });
+    // 2. Verify the JWS header
+    const jwk = decodedJWS.header.jwk;
+    if (!jwk || jwk.alg?.toLowerCase() !== "iccs" || jwk.kty !== "oct") {
+      return { Err: { InvalidIdAlias: "Invalid JWS header" } };
+    }
 
-    // const credentialData = { [request.credential_spec.credential_type]: serializedArgs };
+    // 3. Verify the JWS payload
+    const payload = JSON.parse(decodedJWS.payload);
+    console.log({ payload });
+    if (payload.iss !== ISSUER_URL || !payload.jti.startsWith(CREDENTIAL_URL_PREFIX)) {
+      return { Err: { InvalidIdAlias: "Invalid JWS payload" } };
+    }
 
+    // 4. Verify the credential spec
+    if (!supportedCredentials.includes(request.credential_spec.credential_type)) {
+      return { Err: { UnsupportedCredentialSpec: `Unsupported credential type: ${request.credential_spec.credential_type}` } };
+    }
+
+    // 5. Verify the subject
+    const subjectPrincipal = caller();
+    if (!this.isAuthorizedSubject(subjectPrincipal, request.credential_spec)) {
+      return { Err: { UnauthorizedSubject: "Subject is not authorized for this credential" } };
+    }
+
+    // 6. Prepare the credential data
+    const credentialData = this.prepareCredentialData(request.credential_spec, subjectPrincipal);
+
+    // 7. Encode the prepared context
+    const preparedContext = new TextEncoder().encode(JSON.stringify(credentialData));
     return {
       Ok: {
-        prepared_context: Buffer.from("hello", "utf-8"),
+        prepared_context: [preparedContext],
       },
     };
   }
-
   @query([AzleGetCredentialRequestType], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
-  get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError } {
+  async get_credential(request: GetCredentialRequest): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }> {
     console.log({ getCredentialRequest: request });
-    return { Ok: { vc_jws: "string" } };
+
+    // 1. Verify the request
+    if (!request.prepared_context) {
+      return { Err: { Internal: "Missing prepared context" } };
+    }
+
+    if (request.prepared_context[0] === undefined) {
+      return { Err: { Internal: "Missing prepared context" } };
+    }
+
+    // 2. Decode and verify the prepared context
+    let credentialData;
+    try {
+      credentialData = JSON.parse(new TextDecoder().decode(request.prepared_context[0] as Uint8Array));
+    } catch (error) {
+      return { Err: { Internal: "Invalid prepared context" } };
+    }
+
+    console.log({ credentialData });
+    // 3. Verify that the credential data matches the request
+    if (!credentialData.type.includes(request.credential_spec.credential_type)) {
+      return { Err: { UnsupportedCredentialSpec: "Credential type mismatch" } };
+    }
+
+    // 5. Sign the VC
+    const signedVC = await this.signVC(credentialData, request.credential_spec.credential_type);
+    console.log({ signedVC });
+    return { Ok: { vc_jws: signedVC } };
+  }
+
+  private isAuthorizedSubject(principal: Principal, credentialSpec: CredentialSpec): boolean {
+    // Authorize all subjects for now
+    return true;
+  }
+
+  private prepareCredentialData(credentialSpec: CredentialSpec, subject: Principal) {
+    const serializedArgs = this.parseVcDataPayload(credentialSpec.credential_type, credentialSpec.arguments);
+    return {
+      "@context": ["https://www.w3.org/2018/credentials/v1"],
+      type: ["VerifiableCredential", credentialSpec.credential_type],
+      issuer: ISSUER_URL,
+      issuanceDate: new Date().toISOString(),
+      expirationDate: new Date(Date.now() + Number(VC_EXPIRATION_PERIOD_NS) / 1000000).toISOString(),
+      credentialSubject: {
+        id: `did:icp:${subject.toText()}`,
+        ...serializedArgs,
+      },
+      id: this.credentialIdForPrincipal(subject),
+    };
+  }
+
+  private parseVcDataPayload(credential_type: string, credential_arguments: [string, ArgumentValue][][]) {
+    const serializedArgs: Record<string, string | number> = {};
+    credential_arguments[0].forEach(([key, valueObj]) => {
+      (serializedArgs as Record<string, string | number>)[key] = "String" in valueObj ? valueObj.String : valueObj.Int;
+    });
+
+    return {
+      [credential_type]: serializedArgs,
+    };
+  }
+
+  private credentialIdForPrincipal(subjectPrincipal: Principal): string {
+    const issuer = `issuer:${ISSUER_URL}`;
+    const timestamp = `timestamp_ns:${BigInt(Date.now()) * 1_000_000n}`;
+    const subject = `subject:${subjectPrincipal.toText()}`;
+    return `${CREDENTIAL_URL_PREFIX}${issuer},${timestamp},${subject}`;
+  }
+
+  private async signVC(vc: ReturnType<typeof this.prepareCredentialData>, credential_type: string): Promise<string> {
+    const header = { alg: "HS256" };
+
+    console.log({ data: vc.credentialSubject?.[credential_type], btoa });
+
+    const jwt = new jose.SignJWT({
+      ...vc.credentialSubject?.[credential_type],
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .sign(new TextEncoder().encode("dacade.org"));
+
+    console.log({ jwt: await jwt });
+    return await jwt;
   }
 }

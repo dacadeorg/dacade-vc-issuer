@@ -5,10 +5,13 @@
     },
     "dependencies": {
         "azle": "^0.23.0",
+        "express-jwt": "^8.4.1",
         "jose": "^5.8.0",
+        "js-sha256": "^0.11.0",
         "jsonwebtoken": "^9.0.2",
         "jws": "^4.0.0",
-        "jwt-decode": "^4.0.0"
+        "jwt-decode": "^4.0.0",
+        "node-jose": "^2.2.0"
     },
     "devDependencies": {
         "@types/jsonwebtoken": "^9.0.6",
