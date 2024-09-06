@@ -158,7 +158,7 @@ const AzleDerivationOriginErrorType = IDL.Variant({
 });
 
 const supportedCredentials = ["ICP 101 completion", "ICP 201 completion", "ICP DeAi Completion"];
-const supportedOrigins = ["https://dacade.org", "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
+const supportedOrigins = ["https://dacade.org", "http://be2us-64aaa-aaaaa-qaabq-cai.localhost:4943", "http://ajuq4-ruaaa-aaaaa-qaaga-cai.localhost:4943"];
 const CREDENTIAL_URL_PREFIX = "data:text/plain;charset=UTF-8,";
 const ISSUER_URL = "https://identity.ic0.app/";
 const VC_SIGNING_INPUT_DOMAIN = "iccs_verifiable_credential";
@@ -359,12 +359,7 @@ export default class Canister implements VerifiableCredentialService {
 
     console.log({ data: vc.credentialSubject?.[credential_type], btoa });
 
-    const jwt = new jose.SignJWT({
-      ...vc.credentialSubject?.[credential_type],
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .sign(new TextEncoder().encode("dacade.org"));
+    const jwt = new jose.CompactSign(new TextEncoder().encode(JSON.stringify(vc))).setProtectedHeader({ alg: "HS256" }).sign(new TextEncoder().encode("dacade.org"));
 
     console.log({ jwt: await jwt });
     return await jwt;
