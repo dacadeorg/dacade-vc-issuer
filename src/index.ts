@@ -1,6 +1,5 @@
 import { IDL, Principal, query, update, caller, id } from "azle";
-import jws from "./libs/node-jws";
-import * as jose from "jose";
+import jws from "./libs/jws";
 import { sha256 } from "js-sha256";
 
 /**
@@ -355,14 +354,10 @@ export default class Canister implements VerifiableCredentialService {
   }
 
   private async signVC(vc: ReturnType<typeof this.prepareCredentialData>, credential_type: string): Promise<string> {
-    const header = { alg: "HS256" };
-
-    console.log({ data: vc.credentialSubject?.[credential_type] });
-
     const jwt = jws.sign({
       header: { alg: "HS256", kid: vc.credentialSubject.id },
       payload: vc,
-      secret: "has a van",
+      secret: VC_SIGNING_INPUT_DOMAIN,
     });
 
     console.log({ jwt });
