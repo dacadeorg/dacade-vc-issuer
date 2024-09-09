@@ -279,7 +279,8 @@ export default class Canister implements VerifiableCredentialService {
     };
   }
 
-  @query([AzleGetCredentialRequestType], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
+  // AzleGetCredentialRequestType
+  @query([AzleGetCredentialRequestType], IDL.Variant({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
   get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError } {
     if (!request.prepared_context) {
       return { Err: { Internal: "Missing prepared context" } };
