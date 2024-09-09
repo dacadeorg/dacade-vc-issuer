@@ -5,14 +5,8 @@
   },
   "dependencies": {
     "azle": "^0.23.0",
-    "btoa": "^1.2.1",
-    "express-jwt": "^8.4.1",
     "jose": "^5.8.0",
     "js-sha256": "^0.11.0",
-    "jsonwebtoken": "^9.0.2",
-    "jwt-decode": "^4.0.0",
-    "node-jose": "^2.2.0",
-    "jwa": "^2.0.0",
     "safe-buffer": "^5.0.1",
     "buffer-equal-constant-time": "1.0.1",
     "ecdsa-sig-formatter": "1.0.11"

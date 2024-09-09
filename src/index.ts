@@ -159,7 +159,7 @@ const AzleDerivationOriginErrorType = IDL.Variant({
 const supportedCredentials = ["ICP101Completion", "ICP201Completion", "ICPDeAiCompletion"];
 const supportedOrigins = ["https://dacade.org", "http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
 const CREDENTIAL_URL_PREFIX = "data:text/plain;charset=UTF-8,";
-const ISSUER_URL = "https://identity.ic0.app/";
+const ISSUER_URL = "http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943";
 const VC_SIGNING_INPUT_DOMAIN = "iccs_verifiable_credential";
 const DID_ICP_PREFIX = "did:icp:";
 const MINUTE_NS = 60n * 1_000_000_000n;
@@ -174,7 +174,7 @@ interface VerifiableCredentialService {
   derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError };
   vc_consent_message(request: Icrc21VcConsentMessageRequest): { Ok: Icrc21ConsentInfo } | { Err: Icrc21Error };
   prepare_credential(request: PrepareCredentialRequestType): { Ok: PreparedCredentialDataType } | { Err: IssueCredentialError };
-  get_credential(request: GetCredentialRequest): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }>;
+  get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError };
 }
 
 function hashBytes(value: string): Uint8Array {
@@ -202,7 +202,6 @@ export default class Canister implements VerifiableCredentialService {
         },
       };
     }
-    console.log({ originRequest });
     return { Ok: { origin: originRequest } };
   }
 
@@ -214,7 +213,6 @@ export default class Canister implements VerifiableCredentialService {
     }),
   )
   vc_consent_message(request: Icrc21VcConsentMessageRequest): { Ok: Icrc21ConsentInfo } | { Err: Icrc21Error } {
-    console.log({ consentMessageRequest: request });
     if (!supportedCredentials.includes(request.credential_spec.credential_type)) {
       return {
         Err: {
@@ -254,8 +252,7 @@ export default class Canister implements VerifiableCredentialService {
 
     // 3. Verify the JWS payload
     const payload = JSON.parse(decodedJWS.payload);
-    console.log({ payload });
-    if (payload.iss !== ISSUER_URL || !payload.jti.startsWith(CREDENTIAL_URL_PREFIX)) {
+    if (!payload.jti.startsWith(CREDENTIAL_URL_PREFIX)) {
       return { Err: { InvalidIdAlias: "Invalid JWS payload" } };
     }
 
@@ -281,11 +278,9 @@ export default class Canister implements VerifiableCredentialService {
       },
     };
   }
-  @query([AzleGetCredentialRequestType], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
-  async get_credential(request: GetCredentialRequest): Promise<{ Ok: IssuedCredentialData } | { Err: IssueCredentialError }> {
-    console.log({ getCredentialRequest: request });
 
-    // 1. Verify the request
+  @query([AzleGetCredentialRequestType], IDL.Record({ Ok: AzleIssuedCredentialDataType, Err: AzleIssueCredentialErrorType }))
+  get_credential(request: GetCredentialRequest): { Ok: IssuedCredentialData } | { Err: IssueCredentialError } {
     if (!request.prepared_context) {
       return { Err: { Internal: "Missing prepared context" } };
     }
@@ -294,7 +289,6 @@ export default class Canister implements VerifiableCredentialService {
       return { Err: { Internal: "Missing prepared context" } };
     }
 
-    // 2. Decode and verify the prepared context
     let credentialData;
     try {
       credentialData = JSON.parse(new TextDecoder().decode(request.prepared_context[0] as Uint8Array));
@@ -302,14 +296,11 @@ export default class Canister implements VerifiableCredentialService {
       return { Err: { Internal: "Invalid prepared context" } };
     }
 
-    console.log({ credentialData });
-    // 3. Verify that the credential data matches the request
     if (!credentialData.type.includes(request.credential_spec.credential_type)) {
       return { Err: { UnsupportedCredentialSpec: "Credential type mismatch" } };
     }
 
-    // 5. Sign the VC
-    const signedVC = await this.signVC(credentialData, request.credential_spec.credential_type);
+    const signedVC = this.signVC(credentialData, request.credential_spec.credential_type);
     console.log({ signedVC });
     return { Ok: { vc_jws: signedVC } };
   }
@@ -323,7 +314,7 @@ export default class Canister implements VerifiableCredentialService {
     const serializedArgs = this.parseVcDataPayload(credentialSpec.credential_type, credentialSpec.arguments);
     return {
       "@context": ["https://www.w3.org/2018/credentials/v1"],
-      type: ["VerifiableCredential", credentialSpec.credential_type],
+      type: ["VerifiablePresentation", credentialSpec.credential_type],
       issuer: ISSUER_URL,
       issuanceDate: new Date().toISOString(),
       expirationDate: new Date(Date.now() + Number(VC_EXPIRATION_PERIOD_NS) / 1000000).toISOString(),
@@ -353,14 +344,13 @@ export default class Canister implements VerifiableCredentialService {
     return `${CREDENTIAL_URL_PREFIX}${issuer},${timestamp},${subject}`;
   }
 
-  private async signVC(vc: ReturnType<typeof this.prepareCredentialData>, credential_type: string): Promise<string> {
+  private signVC(vc: ReturnType<typeof this.prepareCredentialData>, credential_type: string): string {
     const jwt = jws.sign({
       header: { alg: "HS256", kid: vc.credentialSubject.id },
       payload: vc,
       secret: VC_SIGNING_INPUT_DOMAIN,
     });
 
-    console.log({ jwt });
     return jwt;
   }
 }

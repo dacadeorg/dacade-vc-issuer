@@ -1,7 +1,7 @@
 /*global module*/
 var Buffer = require("buffer").Buffer;
 var DataStream = require("./data-stream");
-var jwa = require("jwa");
+var jwa = require("../../jwa");
 var Stream = require("stream");
 var toString = require("./tostring");
 var util = require("util");

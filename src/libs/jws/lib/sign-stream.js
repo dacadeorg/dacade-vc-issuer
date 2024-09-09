@@ -25,9 +25,7 @@ function jwsSign(opts) {
   var algo = jwa(header.alg);
 
   var securedInput = jwsSecuredInput(header, payload, encoding);
-  console.log({ securedInput });
   var signature = algo.sign(securedInput, secretOrKey);
-  console.log({ signature, securedInput });
   return `${securedInput}.${signature}`;
 }
 

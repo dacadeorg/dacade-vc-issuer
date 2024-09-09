@@ -17,7 +17,6 @@ if (supportsKeyObjects) {
 }
 
 function checkIsPublicKey(key) {
-  console.log({ key });
   if (Buffer.isBuffer(key)) {
     return;
   }
@@ -123,9 +122,7 @@ function normalizeInput(thing) {
 
 function createHmacSigner(bits) {
   return function sign(thing, secret) {
-    console.log({ thing });
     checkIsSecretKey(secret);
-    console.log({ secret });
     thing = normalizeInput(thing);
     var hmac = crypto.createHmac("sha" + bits, secret);
     var sig = (hmac.update(thing), hmac.digest("base64"));
@@ -251,7 +248,6 @@ module.exports = function jwa(algorithm) {
   var algo = (match[1] || match[3]).toLowerCase();
   var bits = match[2];
 
-  console.log({ algo, bits, algorithm });
   return {
     sign: signerFactories[algo](bits),
     verify: verifierFactories[algo](bits),
