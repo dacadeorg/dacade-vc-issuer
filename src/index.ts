@@ -1,6 +1,8 @@
-import { IDL, Principal, query, update, caller, id } from "azle";
+import { IDL, Principal, query, update, caller, id, init } from "azle";
 import jws from "./libs/jws";
 import { sha256 } from "js-sha256";
+import { ic } from "azle/src/lib";
+import { consentMessage } from "./locale/consentMessage";
 
 /**
  * Link to the DOC: https://internetcomputer.org/docs/current/developer-docs/identity/verifiable-credentials/issuer
@@ -157,9 +159,9 @@ const AzleDerivationOriginErrorType = IDL.Variant({
 });
 
 const supportedCredentials = ["ICP101Completion", "ICP201Completion", "ICPDeAiCompletion"];
-const supportedOrigins = ["https://dacade.org", "http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943", "http://bkyz2-fmaaa-aaaaa-qaaaq-cai.localhost:4943"];
+const supportedOrigins = ["https://dacade.org"];
 const CREDENTIAL_URL_PREFIX = "data:text/plain;charset=UTF-8,";
-const ISSUER_URL = "http://bd3sg-teaaa-aaaaa-qaaba-cai.localhost:4943";
+const ISSUER_URL = "https://dacade.org";
 const VC_SIGNING_INPUT_DOMAIN = "iccs_verifiable_credential";
 const DID_ICP_PREFIX = "did:icp:";
 const MINUTE_NS = 60n * 1_000_000_000n;
@@ -186,6 +188,13 @@ function expTimestampS(): number {
 }
 
 export default class Canister implements VerifiableCredentialService {
+  @init([])
+  init() {
+    const canisterId = ic.id().toHex();
+    const origin = `http://${canisterId}.localhost:4943`;
+    supportedOrigins.push(origin);
+  }
+
   @update(
     [AzleDerivationOriginRequestType],
     IDL.Variant({
@@ -222,9 +231,11 @@ export default class Canister implements VerifiableCredentialService {
         },
       };
     }
+    const message = consentMessage[request.preferences.language] ?? consentMessage["en"];
+    const messageWithCredentialType = message.replace("{credentialType}", request.credential_spec.credential_type);
     return {
       Ok: {
-        consent_message: `You are requesting ${request.credential_spec.credential_type} credentials`,
+        consent_message: messageWithCredentialType,
         language: request.preferences.language,
       },
     };
