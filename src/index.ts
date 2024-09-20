@@ -1,4 +1,4 @@
-import { IDL, Principal, query, update, caller, id, init } from "azle";
+import { IDL, Principal, query, update, caller, id, init, postUpgrade, preUpgrade } from "azle";
 import jws from "./libs/jws";
 import { sha256 } from "js-sha256";
 import { ic } from "azle/src/lib";
@@ -190,7 +190,14 @@ function expTimestampS(): number {
 export default class Canister implements VerifiableCredentialService {
   @init([])
   init() {
-    const canisterId = ic.id().toHex();
+    const canisterId = ic.id().toText();
+    const origin = `http://${canisterId}.localhost:4943`;
+    supportedOrigins.push(origin);
+  }
+
+  @postUpgrade([])
+  postUpgrade() {
+    const canisterId = ic.id().toText();
     const origin = `http://${canisterId}.localhost:4943`;
     supportedOrigins.push(origin);
   }
@@ -204,6 +211,10 @@ export default class Canister implements VerifiableCredentialService {
   )
   derivation_origin(request: DerivationOriginRequest): { Ok: DerivationOriginData } | { Err: DerivationOriginError } {
     const originRequest = request.frontend_hostname;
+    const canisterId = ic.id().toText();
+    console.log({ canisterId });
+    const origin = `http://${canisterId}.localhost:4943`;
+    supportedOrigins.push(origin);
     if (!supportedOrigins.includes(originRequest)) {
       return {
         Err: {
@@ -319,6 +330,7 @@ export default class Canister implements VerifiableCredentialService {
 
   private isAuthorizedSubject(principal: Principal, credentialSpec: CredentialSpec): boolean {
     // Authorize all subjects for now
+    console.log({ credentialSpec, principal });
     return true;
   }
 
