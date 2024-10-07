@@ -191,14 +191,14 @@ export default class Canister implements VerifiableCredentialService {
   @init([])
   init() {
     const canisterId = ic.id().toText();
-    const origin = `http://${canisterId}.localhost:4943`;
+    const origin = `https://${canisterId}.ic0.app`;
     supportedOrigins.push(origin);
   }
 
   @postUpgrade([])
   postUpgrade() {
     const canisterId = ic.id().toText();
-    const origin = `http://${canisterId}.localhost:4943`;
+    const origin = `https://${canisterId}.ic0.app`;
     supportedOrigins.push(origin);
   }
 
@@ -260,8 +260,10 @@ export default class Canister implements VerifiableCredentialService {
     }),
   )
   prepare_credential(request: PrepareCredentialRequestType): { Ok: PreparedCredentialDataType } | { Err: IssueCredentialError } {
+    console.log({ request });
     // 1. Verify the signed_id_alias
     const decodedJWS = jws.decode(request.signed_id_alias.credential_jws);
+    console.log({ decodedJWS });
     if (!decodedJWS) {
       return { Err: { InvalidIdAlias: "Invalid JWS format" } };
     }
